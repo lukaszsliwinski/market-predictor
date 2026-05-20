@@ -1,5 +1,6 @@
 /*venv*/
-/tmp/
+/data/
+/models/
 *.csv
 *.txt
 *.pkl
