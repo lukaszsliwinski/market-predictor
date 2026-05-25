@@ -1,6 +1,5 @@
 import os
 import pickle
-import sys
 
 import yfinance as yf
 import pandas as pd
@@ -10,16 +9,16 @@ from zoneinfo import ZoneInfo
 import exchange_calendars as xcals
 
 
-def load_yf_data(full):
+def load_yf_data(predict, load_cache, save_cache):
   """
   Download data from yfinance and save to cache.
   Subsequent calls will load from cache only.
   """
 
-  if full:
-    start_date = date.today()-timedelta(days=728)
+  if predict:
+    start = date.today()-timedelta(days=4)
   else:
-    start_date = date.today()-timedelta(days=4)
+    start = date.today()-timedelta(days=728)
 
   # tickers + names
   tickers = {
@@ -29,10 +28,10 @@ def load_yf_data(full):
     "euro_stoxx": "^STOXX50E"
   }
 
-  if "--load-cache" in sys.argv:
+  if load_cache:
     cache_file_path = "data/yf_cache_2026-04-29_09-03-00.pkl"
 
-    if os.path.exists(cache_file_path) and full:
+    if os.path.exists(cache_file_path) and not predict:
       print("Loading data from cache...")
       with open(cache_file_path, "rb") as f:
         data_dict = pickle.load(f)
@@ -47,7 +46,7 @@ def load_yf_data(full):
     for name, ticker in tickers.items():
       df = yf.download(
         ticker,
-        start=start_date,
+        start=start,
         end=date.today()+timedelta(days=1),
         interval="1h",
         group_by="column",
@@ -59,7 +58,7 @@ def load_yf_data(full):
         df.columns = df.columns.droplevel(1)
       
       df = df.reset_index()
-      df["Datetime"] = pd.to_datetime(df["Datetime"])
+      df["Datetime"] = pd.to_datetime(df["index"])
       df = df[["Datetime", "Open", "High", "Low", "Close", "Volume"]]
 
       # save to dictionary
@@ -69,17 +68,17 @@ def load_yf_data(full):
     # cache yfinance data
     cache_file_path = datetime.now().strftime("data/yf_cache_%Y-%m-%d_%H-%M-%S.pkl")
 
-    if "--save-cache" in sys.argv:
+    if save_cache:
       with open(cache_file_path, "wb") as f:
         pickle.dump(data_dict, f)
 
   return (data_dict["es"], data_dict["nikkei"], data_dict["taiex"], data_dict["euro_stoxx"])
 
 
-def create_features(start_date=None, end_date=None, full=False):
+def create_features(start_date=None, end_date=None, predict=False, load_cache=False, save_cache=False):
   # Load the main ES dataset plus external index series from cache or yfinance
   try:
-    data, nikkei, taiex, euro_stoxx = load_yf_data(full=full)
+    data, nikkei, taiex, euro_stoxx = load_yf_data(predict=predict, load_cache=load_cache, save_cache=save_cache)
 
     # add current hour due to yfinance delay
     now_hour = pd.Timestamp.now("UTC").floor("h")
@@ -410,9 +409,14 @@ def create_features(start_date=None, end_date=None, full=False):
   # Remove 17:00 and 18:00
   data = data[(data["Hour_NY"] != 17) & (data["Hour_NY"] != 18)]
 
-  # Export data to csv if not for predict
-  if full:
-    # Remove empty values    
+  if predict:
+    # Leave only current hour and export to predict.csv
+    data = data.tail(1)
+    data.to_csv("data/predict.csv", index=False)
+
+  else:
+    # Remove empty values
+    print(data.tail(20))
     data = data.dropna().reset_index(drop=True)
 
     # Remove the last line if it concerns the current time
@@ -442,11 +446,3 @@ def create_features(start_date=None, end_date=None, full=False):
 
     else:
       data.to_csv(csv_file_path, index=False)
-  
-  else:
-    # Leave only current hour
-    data = data.tail(1)
-    data.to_csv("data/predict.csv", index=False)
-
-create_features(full="--predict" not in sys.argv)
-

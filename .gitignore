@@ -1,6 +1,6 @@
+__pycache__/
 /*venv*/
 /data/
 /models/
 *.csv
-*.txt
 *.pkl

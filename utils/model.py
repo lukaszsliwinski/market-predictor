@@ -1,11 +1,12 @@
 
 import numpy as np
 import pandas as pd
+from datetime import datetime, date
 from lightgbm import LGBMClassifier
 import joblib
 
 
-def train(start_train="2024-05-01", end_train="2026-04-30", report=False):
+def train(start_train="2024-05-01", end_train=date.today(), report=False):
   # =========================
   # DATA
   # =========================
@@ -53,7 +54,10 @@ def train(start_train="2024-05-01", end_train="2026-04-30", report=False):
   )
 
   model.fit(X_train, y_train)
+
+  # Rewrite current model and save a copy with timestamp
   joblib.dump(model, "models/lgbm_model.pkl")
+  joblib.dump(model, datetime.now().strftime("models/lgbm_model_%Y-%m-%d_%H-%M-%S.pkl"))
 
   # =========================
   # PREDICTIONS
@@ -239,5 +243,3 @@ def train(start_train="2024-05-01", end_train="2026-04-30", report=False):
 
     print("\nSAMPLE SIZE:\n")
     print(formatted_counts)
-
-# train(report=True)

@@ -1,6 +1,7 @@
 import joblib
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
 
 from datetime import datetime, timedelta
 from model import train
@@ -56,7 +57,7 @@ data["Pred_dir"] = np.where(
   data["Day_dir_till_hour"] == data["Pred"],
   1.0,
   -1.0
-).astype(int)
+).astype(np.float32)
 data["Pct_diff"] = (((data["Close"] - data["Open"]) / data["Open"]) * 100).round(2)
 
 data["High_pct"] = np.where(
@@ -73,7 +74,7 @@ data["Low_pct"] = np.where(
 
 # SL/TP with leverage & spread (%)
 tp = 100.0 # no TP in current strategy
-sl = 7.0 # 5.0 also good
+sl = 7.0
 
 spread = 0.3 # avg. value
 
@@ -91,6 +92,8 @@ data["Early_take_value"] = np.where(
 
 data["Abs_ret_pct_x_lev"] = (
   np.where(
+
+
     (data["Pred_dir"] == data["Dir"]),
     np.where(
       data["Early_stop_value"] >= sl,
@@ -101,7 +104,6 @@ data["Abs_ret_pct_x_lev"] = (
         data["Pct_diff"].abs() * 20
       ),
     ),
-
     np.where(
       data["Early_stop_value"] >= sl,
       -sl,
@@ -111,6 +113,33 @@ data["Abs_ret_pct_x_lev"] = (
         -np.minimum(data["Pct_diff"].abs() * 20, sl)
       )
     )
+
+
+    # Take profit backtest - in progress not finished yet
+    # TODO: find optimal TP/SL values
+    # Important! early stop and take recalculate based on Open!! 
+
+    # (data["Early_stop_value"] > sl),
+    # -sl,
+    # np.where(
+    #   (data["Early_take_value"] > tp),
+    #   tp,
+    #   np.where(
+    #     (data["Pred_dir"] == data["Dir"]),
+    #     np.where(
+    #       (data["Pct_diff"].abs()*20 > tp),
+    #       tp,
+    #       data["Pct_diff"].abs()*20
+    #     ),
+    #     np.where(
+    #       (data["Pct_diff"].abs()*20 > sl),
+    #       -sl,
+    #       -(data["Pct_diff"].abs()*20)
+    #     )
+    #   )
+    # )
+
+
   ) / 100
 ).astype(np.float32)
 
@@ -182,8 +211,33 @@ data = data[[
 ]]
 
 
-print(data.head(46))
-print(data.tail(46))
+# print(data.head(48))
+# print(data.tail(48))
+
+
+
+
+# =========================
+# PLOT BACKTEST RESULTS
+# =========================
+
+# Beginnig of the month only
+# data["Date_NY"] = pd.to_datetime(data["Date_NY"])
+# data = (
+#     data.sort_values("Date_NY")
+#         .groupby(data["Date_NY"].dt.to_period("M"))
+#         .tail(1)
+# )
+
+plt.figure(figsize=(12, 6))
+plt.plot(data["Date_NY"], data["Capital"], marker="o")
+plt.xlabel("Data")
+plt.ylabel("Kapitał po transakcji")
+plt.title(f"Całkowity kapitał od 2026-01-01")
+plt.xticks(rotation=45)
+plt.grid(True)
+plt.tight_layout()
+plt.show()
 
 
 
