@@ -197,6 +197,7 @@ data = data[[
   "Session_weekday",
   "Open",
   "Close",
+  # "Day_dir_till_hour",
   "Pred",
   "Pred_dir",
   "Dir",
