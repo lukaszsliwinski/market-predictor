@@ -10,19 +10,40 @@ def create_features(latest_open=0, latest_close=0, latest_high=0, latest_low=0, 
   # YFINANCE DATA
   # =========================
 
+  # Get backuped raw yfinance data from .csv
+  raw_file_path = "data/raw.csv"
+
+  data = pd.read_csv(raw_file_path)
+  data["Datetime"] = pd.to_datetime(data["Datetime"], utc=True)
+  data = data[["Datetime", "Open", "High", "Low", "Close", "Volume"]]
+  raw_data = data.copy()
+
+  # Import latest data w from yfinance
   data = yf.download(
     "ES=F",
     period="max",
     interval="1h",
   )
 
-  # remove MultiIndex if present
+  # Remove MultiIndex if present
   if isinstance(data.columns, pd.MultiIndex):
     data.columns = data.columns.droplevel(1)
   
   data = data.reset_index()
   data["Datetime"] = pd.to_datetime(data["index"])
   data = data[["Datetime", "Open", "High", "Low", "Close", "Volume"]]
+  data.columns.name = None
+
+  # Aggregate latest and backuped data
+  data["Datetime"] = pd.to_datetime(data["Datetime"], utc=True)
+  last_raw_datetime = raw_data["Datetime"].max()
+  new_data = data[data["Datetime"] >= last_raw_datetime]
+
+  data = pd.concat([raw_data, new_data], ignore_index=True)
+  data = data.drop_duplicates(subset=["Datetime"], keep="last")
+  data = data.sort_values("Datetime").reset_index(drop=True)
+
+  data.iloc[:-1].to_csv(raw_file_path, index=False)
 
   # Overwrite last row with manually entered data
   data.loc[data.index[-1], "Open"] = latest_open
@@ -31,7 +52,7 @@ def create_features(latest_open=0, latest_close=0, latest_high=0, latest_low=0, 
   data.loc[data.index[-1], "Close"] = latest_close
   data.loc[data.index[-1], "Volume"] = latest_volume
 
-  # add current hour due to yfinance delay
+  # Add current hour due to yfinance delay
   last_datetime = pd.Timestamp(data.iloc[-1]["Datetime"])
   now_hour = pd.Timestamp.now(tz=last_datetime.tz).floor("h")
 
@@ -55,7 +76,7 @@ def create_features(latest_open=0, latest_close=0, latest_high=0, latest_low=0, 
   # NY time (with DST)
   data["Datetime_NY"] = data["Datetime"].dt.tz_convert("America/New_York")
 
-  # extract date and hour from local time
+  # Extract date and hour from local time
   data["Date_NY"] = data["Datetime_NY"].dt.date
   data["Hour_NY"] = data["Datetime_NY"].dt.hour
 
