@@ -1,98 +1,49 @@
 import os
-import pickle
-
 import yfinance as yf
 import pandas as pd
 import numpy as np
-from datetime import datetime, date, timedelta
-from zoneinfo import ZoneInfo
 import exchange_calendars as xcals
 
 
-def load_yf_data(predict, load_cache, save_cache):
-  """
-  Download data from yfinance and save to cache.
-  Subsequent calls will load from cache only.
-  """
+def create_features(latest_open=0, latest_close=0, latest_high=0, latest_low=0, latest_volume=0):
+  # =========================
+  # YFINANCE DATA
+  # =========================
 
-  if predict:
-    start = date.today()-timedelta(days=4)
-  else:
-    start = date.today()-timedelta(days=728)
+  data = yf.download(
+    "ES=F",
+    period="max",
+    interval="1h",
+  )
 
-  # tickers + names
-  tickers = {
-    "es": "ES=F",
-    "nikkei": "^N225",
-    "taiex": "^TWII",
-    "euro_stoxx": "^STOXX50E"
-  }
+  # remove MultiIndex if present
+  if isinstance(data.columns, pd.MultiIndex):
+    data.columns = data.columns.droplevel(1)
+  
+  data = data.reset_index()
+  data["Datetime"] = pd.to_datetime(data["index"])
+  data = data[["Datetime", "Open", "High", "Low", "Close", "Volume"]]
 
-  if load_cache:
-    cache_file_path = "data/yf_cache_2026-04-29_09-03-00.pkl"
+  # Overwrite last row with manually entered data
+  data.loc[data.index[-1], "Open"] = latest_open
+  data.loc[data.index[-1], "High"] = latest_high
+  data.loc[data.index[-1], "Low"] = latest_low
+  data.loc[data.index[-1], "Close"] = latest_close
+  data.loc[data.index[-1], "Volume"] = latest_volume
 
-    if os.path.exists(cache_file_path) and not predict:
-      print("Loading data from cache...")
-      with open(cache_file_path, "rb") as f:
-        data_dict = pickle.load(f)
-    else:
-      print("Unable to load cache data for current prediction!")
-      pass
+  # add current hour due to yfinance delay
+  last_datetime = pd.Timestamp(data.iloc[-1]["Datetime"])
+  now_hour = pd.Timestamp.now(tz=last_datetime.tz).floor("h")
 
-  else:
-    print("Downloading data from yfinance...")
-    data_dict = {}
-
-    for name, ticker in tickers.items():
-      df = yf.download(
-        ticker,
-        start=start,
-        end=date.today()+timedelta(days=1),
-        interval="1h",
-        group_by="column",
-        auto_adjust=False
-      )
-
-      # remove MultiIndex if present
-      if isinstance(df.columns, pd.MultiIndex):
-        df.columns = df.columns.droplevel(1)
-      
-      df = df.reset_index()
-      df["Datetime"] = pd.to_datetime(df["index"])
-      df = df[["Datetime", "Open", "High", "Low", "Close", "Volume"]]
-
-      # save to dictionary
-      data_dict[name] = df
-
-
-    # cache yfinance data
-    cache_file_path = datetime.now().strftime("data/yf_cache_%Y-%m-%d_%H-%M-%S.pkl")
-
-    if save_cache:
-      with open(cache_file_path, "wb") as f:
-        pickle.dump(data_dict, f)
-
-  return (data_dict["es"], data_dict["nikkei"], data_dict["taiex"], data_dict["euro_stoxx"])
-
-
-def create_features(start_date=None, end_date=None, predict=False, load_cache=False, save_cache=False):
-  # Load the main ES dataset plus external index series from cache or yfinance
-  try:
-    data, nikkei, taiex, euro_stoxx = load_yf_data(predict=predict, load_cache=load_cache, save_cache=save_cache)
-
-    # add current hour due to yfinance delay
-    now_hour = pd.Timestamp.now("UTC").floor("h")
-
-    if data.iloc[-1]["Datetime"].floor("h") != now_hour:
-      data.loc[len(data)] = {
-        "Datetime": now_hour,
-        "Open": data.iloc[-1]["Close"]
-      }
-
-  except:
-    print("Loading data error!")
-    return
-
+  if last_datetime.floor("h") != now_hour:
+    data.loc[len(data)] = {
+      "Datetime": now_hour,
+      "Open": data.iloc[-1]["Close"],
+      "High": 0.0,
+      "Low": 0.0,
+      "Close": 0.0,
+      "Volume": 0.0
+    }
 
   # =========================
   # TIME FEATURES
@@ -253,71 +204,19 @@ def create_features(start_date=None, end_date=None, predict=False, load_cache=Fa
 
 
   # =========================
-  # INDEX FEATURES (IN LOOP)
+  # RELATED INDEXES RTH (IN LOOP)
   # =========================
-
-  # Merge external index data and derive aligned RTH and direction features
-  xtks = xcals.get_calendar("XTKS")
-  xtai = xcals.get_calendar("XTAI")
-  xeur = xcals.get_calendar("XEUR")
-
-  indices = {
-    "Nikkei": {
-      "data": nikkei,
-      "calendar": xtks
-    },
-
-    "Taiex": {
-      "data": taiex,
-      "calendar": xtai
-    },
-
-    "EuroStoxx": {
-      "data": euro_stoxx,
-      "calendar": xeur
-    }
-  }
-
-  for prefix, config in indices.items():
-
-    df_index = config["data"]
-    calendar = config["calendar"]
-
-    df = df_index.copy()
-
-    df[f"{prefix}_open"] = df["Open"]
-    df[f"{prefix}_close"] = df["Close"]
-    df = df[["Datetime", f"{prefix}_open", f"{prefix}_close"]]
-
-    df["Datetime"] = pd.to_datetime(df["Datetime"], utc=True)
-
-    data = data.merge(df, on="Datetime", how="left")
-
-    # RTH from exchange_calendar
-    data[f"{prefix}_is_RTH"] = data["Datetime"].apply(
-      lambda ts: float(calendar.is_open_on_minute(ts))
-    ).astype("float32")
-
-    # fillna(0.0)
-    data[f"{prefix}_prev_hour_dir"] = np.sign(
-      data[f"{prefix}_close"].shift(1) - data[f"{prefix}_open"].shift(1)
-    ).fillna(0.0)
-
-    session_open = data.groupby("Session_Day")[f"{prefix}_open"].transform("first")
-
-    # Use the previous session's open for the index only when the prior bar was in regular trading hours
-    data[f"{prefix}_session_open"] = np.where(
-      data[f"{prefix}_is_RTH"].shift(1) == 1.0,
-      session_open,
-      np.nan
+  for prefix, cal_code in {
+    "Nikkei": "XTKS",
+    "Taiex": "XTAI",
+    "EuroStoxx": "XEUR"
+  }.items():
+    calendar = xcals.get_calendar(cal_code)
+    data[f"{prefix}_is_RTH"] = (
+      data["Datetime"]
+      .apply(lambda ts: float(calendar.is_open_on_minute(ts)))
+      .astype("float32")
     )
-
-    data[f"{prefix}_day_dir_till_hour"] = np.sign(
-      data[f"{prefix}_close"].shift(1) - data[f"{prefix}_session_open"]
-    )
-
-    # forward fill without altering initial NaN values
-    data[f"{prefix}_day_dir_till_hour"] = data[f"{prefix}_day_dir_till_hour"].ffill()
 
 
 
@@ -335,21 +234,6 @@ def create_features(start_date=None, end_date=None, predict=False, load_cache=Fa
   # Target indicates whether the current hour maintains the session direction from the session open
   data["Dir"] = np.sign(data["Close"] - data["Open"]).astype("float32")
   data["Target"] = (data["Dir"] == data["Day_dir_till_hour"]).astype("float32")
-
-
-  # Optional filter by session day range
-  if start_date is not None:
-    # Convert to date if a string or datetime was provided
-    start_dt = pd.to_datetime(start_date).date()
-    data = data[data["Session_Day"] >= start_dt]
-
-  if end_date is not None:
-    # Convert to date if a string or datetime was provided
-    end_dt = pd.to_datetime(end_date).date()
-    data = data[data["Session_Day"] <= end_dt]
-
-  # After filtering, reset the index to avoid issues when selecting columns
-  data = data.reset_index(drop=True)
 
   # Select the final feature set for training/export
   data = data[[
@@ -390,59 +274,42 @@ def create_features(start_date=None, end_date=None, predict=False, load_cache=Fa
     "Dist_MA50",
     "Momentum_accel",
     "Range_position_12h",
-    
     "Nikkei_is_RTH",
-    "Nikkei_prev_hour_dir",
-    "Nikkei_day_dir_till_hour",
-    
     "Taiex_is_RTH",
-    "Taiex_prev_hour_dir",
-    "Taiex_day_dir_till_hour",
-    
     "EuroStoxx_is_RTH",
-    "EuroStoxx_prev_hour_dir",
-    "EuroStoxx_day_dir_till_hour",
-
     "Target"
   ]]
 
   # Remove 17:00 and 18:00
   data = data[(data["Hour_NY"] != 17) & (data["Hour_NY"] != 18)]
 
-  if predict:
-    # Leave only current hour and export to predict.csv
-    data = data.tail(1)
-    data.to_csv("data/predict.csv", index=False)
+  # Remove empty values
+  data = data.dropna().reset_index(drop=True)
+
+  # Save to CSV (append new data)
+  csv_file_path = "data/data.csv"
+
+  data["Datetime"] = pd.to_datetime(data["Datetime"], utc=True)
+
+  if os.path.exists(csv_file_path):
+
+    old = pd.read_csv(csv_file_path)
+    old["Datetime"] = pd.to_datetime(old["Datetime"], utc=True)
+
+    old_set = set(old["Datetime"])
+
+    new_data = data[~data["Datetime"].isin(old_set)]
+
+    new_data = new_data.reindex(columns=old.columns)
+
+    if len(new_data) > 0:
+      new_data.to_csv(csv_file_path, mode="a", header=False, index=False)
+      print(f"Dodano {len(new_data)} nowych rekordów")
+    else:
+      print("Brak nowych danych do dodania")
 
   else:
-    # Remove empty values
-    print(data.tail(20))
-    data = data.dropna().reset_index(drop=True)
+    data.to_csv(csv_file_path, index=False)
 
-    # Remove the last line if it concerns the current time
-    if data.iloc[-1]["Hour_NY"] == datetime.now(ZoneInfo("America/New_York")).hour:
-      data = data.iloc[:-1]
 
-    csv_file_path = "data/data.csv"
-
-    data["Datetime"] = pd.to_datetime(data["Datetime"], utc=True)
-
-    if os.path.exists(csv_file_path):
-
-      old = pd.read_csv(csv_file_path)
-      old["Datetime"] = pd.to_datetime(old["Datetime"], utc=True)
-
-      old_set = set(old["Datetime"])
-
-      new_data = data[~data["Datetime"].isin(old_set)]
-
-      new_data = new_data.reindex(columns=old.columns)
-
-      if len(new_data) > 0:
-        new_data.to_csv(csv_file_path, mode="a", header=False, index=False)
-        print(f"Dodano {len(new_data)} nowych rekordów")
-      else:
-        print("Brak nowych danych do dodania")
-
-    else:
-      data.to_csv(csv_file_path, index=False)
+create_features(latest_open=100, latest_close=200, latest_high=100, latest_low=100, latest_volume=1000000)
