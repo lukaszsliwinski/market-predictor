@@ -172,7 +172,7 @@ def create_features(latest_open=0, latest_close=0, latest_high=0, latest_low=0, 
 
   data["Vol_prev_log"] = np.log1p(volume_prev)
   
-  data["Prev_hour_dir"] = np.sign(data["Close"].shift(1) - data["Open"].shift(1)) # TODO: decide whether to delete
+  data["Prev_hour_dir"] = np.sign(data["Close"].shift(1) - data["Open"].shift(1))
   data["Day_dir_till_hour"] = np.sign(close_prev - data["Session_open"])  # For target only
 
 
@@ -268,6 +268,7 @@ def create_features(latest_open=0, latest_close=0, latest_high=0, latest_low=0, 
     "Close",
     "High",
     "Low",
+    "Volume",
     "Dir",
     "Day_dir_till_hour",
     ### ---------------------- ###
@@ -316,6 +317,7 @@ def create_features(latest_open=0, latest_close=0, latest_high=0, latest_low=0, 
 
     old = pd.read_csv(csv_file_path)
     old["Datetime"] = pd.to_datetime(old["Datetime"], utc=True)
+    old = old.iloc[:-1]
 
     old_set = set(old["Datetime"])
 
@@ -333,4 +335,4 @@ def create_features(latest_open=0, latest_close=0, latest_high=0, latest_low=0, 
     data.to_csv(csv_file_path, index=False)
 
 
-create_features(latest_open=100, latest_close=200, latest_high=100, latest_low=100, latest_volume=1000000)
+create_features(latest_open=0.0, latest_close=0.0, latest_high=0.0, latest_low=0.0, latest_volume=0.0)

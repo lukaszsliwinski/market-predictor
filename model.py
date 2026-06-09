@@ -26,7 +26,7 @@ def train(start_train="2024-05-01", end_train=date.today(), report=False):
   # FEATURES / TARGET
   # =========================
 
-  X = df.drop(columns=["Datetime", "Date_NY", "Session_weekday", "Open", "Close", "High", "Low", "Dir", "Day_dir_till_hour", "Target"])
+  X = df.drop(columns=["Datetime", "Date_NY", "Session_weekday", "Open", "Close", "High", "Low", "Volume", "Dir", "Day_dir_till_hour", "Target"])
   y = df["Target"].astype(int)
 
   # =========================
@@ -45,10 +45,10 @@ def train(start_train="2024-05-01", end_train=date.today(), report=False):
   # =========================
 
   model = LGBMClassifier(
-    n_estimators=530,
+    n_estimators=162,
     num_leaves=31,
     learning_rate=0.05,
-    max_depth=16,
+    max_depth=11,
     random_state=42,
     verbose=-1
   )
@@ -57,7 +57,6 @@ def train(start_train="2024-05-01", end_train=date.today(), report=False):
 
   # Rewrite current model and save a copy with timestamp
   joblib.dump(model, "models/lgbm_model.pkl")
-  joblib.dump(model, datetime.now().strftime("models/lgbm_model_%Y-%m-%d_%H-%M-%S.pkl"))
 
   # =========================
   # PREDICTIONS

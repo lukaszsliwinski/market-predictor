@@ -17,7 +17,8 @@ for date in [
   "2026-01-31",
   "2026-02-28",
   "2026-03-31",
-  "2026-04-30"
+  "2026-04-30",
+  "2026-05-31",
 ]:
   month_data = pd.read_csv("data/data.csv")
   month_data["Datetime"] = pd.to_datetime(month_data["Datetime"])
@@ -30,16 +31,16 @@ for date in [
     (month_data["Datetime"] <= end_date)
   ]
 
-  train(end_train=date)
+  train(end_train=date) # retrain every month with new data and different prop value for testing
   model = joblib.load("models/lgbm_model.pkl")
 
   X = month_data.drop(
-    columns=["Datetime", "Date_NY", "Session_weekday", "Open", "Close", "High", "Low", "Dir", "Day_dir_till_hour", "Target"],
+    columns=["Datetime", "Date_NY", "Session_weekday", "Open", "Close", "High", "Low", "Volume", "Dir", "Day_dir_till_hour", "Target"],
     errors="ignore"
   )
 
   month_data["Pred"] = model.predict(X)
-  month_data = month_data[["Date_NY", "Hour_NY", "Session_weekday", "Open", "Close", "High", "Low","Dir", "Target", "Pred", "Day_dir_till_hour"]]
+  month_data = month_data[["Date_NY", "Hour_NY", "Session_weekday", "Open", "Close", "High", "Low", "Volume", "Dir", "Target", "Pred", "Day_dir_till_hour"]]
 
   data = pd.concat([data, month_data], ignore_index=True)
 
@@ -113,33 +114,6 @@ data["Abs_ret_pct_x_lev"] = (
         -np.minimum(data["Pct_diff"].abs() * 20, sl)
       )
     )
-
-
-    # Take profit backtest - in progress not finished yet
-    # TODO: find optimal TP/SL values
-    # Important! early stop and take recalculate based on Open!! 
-
-    # (data["Early_stop_value"] > sl),
-    # -sl,
-    # np.where(
-    #   (data["Early_take_value"] > tp),
-    #   tp,
-    #   np.where(
-    #     (data["Pred_dir"] == data["Dir"]),
-    #     np.where(
-    #       (data["Pct_diff"].abs()*20 > tp),
-    #       tp,
-    #       data["Pct_diff"].abs()*20
-    #     ),
-    #     np.where(
-    #       (data["Pct_diff"].abs()*20 > sl),
-    #       -sl,
-    #       -(data["Pct_diff"].abs()*20)
-    #     )
-    #   )
-    # )
-
-
   ) / 100
 ).astype(np.float32)
 
@@ -195,26 +169,17 @@ data = data[[
   "Date_NY",
   "Hour_NY",
   "Session_weekday",
-  "Open",
-  "Close",
-  # "Day_dir_till_hour",
   "Pred",
   "Pred_dir",
   "Dir",
   "Pct_diff",
-  "High_pct",
-  "Low_pct",
-  # "Early_stop_value",
-  # "Abs_ret_pct_x_lev",
   "Ret_m_spread_x_lev",
-  # "Min_cost",
   "Capital"
 ]]
 
 
-# print(data.head(48))
-# print(data.tail(48))
-
+print(data.head(52))
+print(data.tail(52))
 
 
 
