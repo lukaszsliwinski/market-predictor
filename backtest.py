@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
 from model import train
 
+from constants import FEATURES
 
 # =========================
 # LOAD DATA AND CREATE PREDICTIONS WITH RETRAIN EVERY MONTH
@@ -34,10 +35,7 @@ for date in [
   train(end_train=date) # retrain every month with new data and different prop value for testing
   model = joblib.load("models/lgbm_model.pkl")
 
-  X = month_data.drop(
-    columns=["Datetime", "Date_NY", "Session_weekday", "Open", "Close", "High", "Low", "Volume", "Dir", "Day_dir_till_hour", "Target"],
-    errors="ignore"
-  )
+  X = month_data[FEATURES]
 
   month_data["Pred"] = model.predict(X)
   month_data = month_data[["Date_NY", "Hour_NY", "Session_weekday", "Open", "Close", "High", "Low", "Volume", "Dir", "Target", "Pred", "Day_dir_till_hour"]]
@@ -180,8 +178,7 @@ data = data[[
 
 print(data.head(52))
 print(data.tail(52))
-
-
+print(f"Accuracy: {(data['Pred_dir'] == data['Dir']).mean() * 100:.2f}%")
 
 # =========================
 # PLOT BACKTEST RESULTS
@@ -195,15 +192,15 @@ print(data.tail(52))
 #         .tail(1)
 # )
 
-plt.figure(figsize=(12, 6))
-plt.plot(data["Date_NY"], data["Capital"], marker="o")
-plt.xlabel("Data")
-plt.ylabel("Kapitał po transakcji")
-plt.title(f"Całkowity kapitał od 2026-01-01")
-plt.xticks(rotation=45)
-plt.grid(True)
-plt.tight_layout()
-plt.show()
+# plt.figure(figsize=(12, 6))
+# plt.plot(data["Date_NY"], data["Capital"], marker="o")
+# plt.xlabel("Data")
+# plt.ylabel("Kapitał po transakcji")
+# plt.title(f"Całkowity kapitał od 2026-01-01")
+# plt.xticks(rotation=45)
+# plt.grid(True)
+# plt.tight_layout()
+# plt.show()
 
 
 

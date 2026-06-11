@@ -184,8 +184,8 @@ def create_features(latest_open=0, latest_close=0, latest_high=0, latest_low=0, 
   # Returns and momentum acceleration
   data["Ret_1h"] = close_prev.pct_change(1)
   data["Ret_2h"] = close_prev.pct_change(2)
-  data["Ret_4h"] = close_prev.pct_change(4)  # For dependent features only
-  data["Ret_8h"] = close_prev.pct_change(8)  # For dependent features only
+  data["Ret_4h"] = close_prev.pct_change(4)
+  data["Ret_8h"] = close_prev.pct_change(8)
 
   data["Momentum_accel"] = data["Ret_1h"] - data["Ret_4h"]
 
@@ -201,18 +201,31 @@ def create_features(latest_open=0, latest_close=0, latest_high=0, latest_low=0, 
   # Rolling volatility
   returns_1h_prev = close_prev.pct_change()
 
+  data["Vol_2h"] = returns_1h_prev.rolling(2).std()
   data["Vol_4h"] = returns_1h_prev.rolling(4).std()
+  data["Vol_8h"] = returns_1h_prev.rolling(8).std()
   data["Vol_24h"] = returns_1h_prev.rolling(24).std()
 
   # Z-score moves (volatility-adjusted returns)
   rolling_std_20 = returns_1h_prev.rolling(20).std()
   rolling_std_20 = rolling_std_20.replace(0, np.nan)
 
+  data["Zscore_1h"] = data["Ret_1h"] / rolling_std_20
+  data["Zscore_2h"] = data["Ret_2h"] / rolling_std_20
   data["Zscore_4h"] = data["Ret_4h"] / rolling_std_20
   data["Zscore_8h"] = data["Ret_8h"] / rolling_std_20
 
-  # Distance from moving average (last 50 candles)
+  # Distance from moving average
+  ma_10 = close_prev.rolling(10).mean()
+  ma_20 = close_prev.rolling(20).mean()
+  ma_30 = close_prev.rolling(30).mean()
+  ma_40 = close_prev.rolling(40).mean()
   ma_50 = close_prev.rolling(50).mean()
+
+  data["Dist_MA10"] = (close_prev - ma_10) / ma_10
+  data["Dist_MA20"] = (close_prev - ma_20) / ma_20
+  data["Dist_MA30"] = (close_prev - ma_30) / ma_30
+  data["Dist_MA40"] = (close_prev - ma_40) / ma_40
   data["Dist_MA50"] = (close_prev - ma_50) / ma_50
  
   # Range position (where the current price is within the 12h high-low range)
@@ -262,8 +275,6 @@ def create_features(latest_open=0, latest_close=0, latest_high=0, latest_low=0, 
     "Date_NY",
     "Session_weekday",
 
-
-    ### Using only in backtest ###
     "Open",
     "Close",
     "High",
@@ -271,7 +282,6 @@ def create_features(latest_open=0, latest_close=0, latest_high=0, latest_low=0, 
     "Volume",
     "Dir",
     "Day_dir_till_hour",
-    ### ---------------------- ###
 
     "Hour_NY",
     "Sin_hour",
@@ -283,19 +293,36 @@ def create_features(latest_open=0, latest_close=0, latest_high=0, latest_low=0, 
     "Prev_volatility",
     "Session_prev_volatility",
     "Rel_prev_volatility",
-    # "Prev_hour_dir",
+    "Prev_hour_dir",
     "Vol_prev_log",
+    
     "Ret_1h",
     "Ret_2h",
+    "Ret_4h",
+    "Ret_8h",
+
     "VWAP_log",
     "Dist_VWAP",
+    
+    "Vol_2h",
     "Vol_4h",
+    "Vol_8h",
     "Vol_24h",
+    
+    "Zscore_1h",
+    "Zscore_2h",
     "Zscore_4h",
     "Zscore_8h",
-    "Dist_MA50",
+    
+    "Dist_MA10",
+    "Dist_MA20",
+    "Dist_MA30",
+    "Dist_MA40",
+    "Dist_MA50",    
+    
     "Momentum_accel",
     "Range_position_12h",
+
     "Nikkei_is_RTH",
     "Taiex_is_RTH",
     "EuroStoxx_is_RTH",

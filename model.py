@@ -5,6 +5,8 @@ from datetime import datetime, date
 from lightgbm import LGBMClassifier
 import joblib
 
+from constants import FEATURES
+
 
 def train(start_train="2024-05-01", end_train=date.today(), report=False):
   # =========================
@@ -26,7 +28,7 @@ def train(start_train="2024-05-01", end_train=date.today(), report=False):
   # FEATURES / TARGET
   # =========================
 
-  X = df.drop(columns=["Datetime", "Date_NY", "Session_weekday", "Open", "Close", "High", "Low", "Volume", "Dir", "Day_dir_till_hour", "Target"])
+  X = df[FEATURES]
   y = df["Target"].astype(int)
 
   # =========================
@@ -45,17 +47,37 @@ def train(start_train="2024-05-01", end_train=date.today(), report=False):
   # =========================
 
   model = LGBMClassifier(
-    n_estimators=162,
-    num_leaves=31,
-    learning_rate=0.05,
-    max_depth=11,
+    n_estimators=135,
+    num_leaves=63,
+    learning_rate=0.089,
+    max_depth=6,
     random_state=42,
     verbose=-1
   )
 
+
+
+  # model = LGBMClassifier(
+  #   n_estimators=153,
+  #   num_leaves=63,
+  #   learning_rate=0.087,
+  #   max_depth=6,
+  #   random_state=42,
+  #   verbose=-1
+  # )
+
+  # model = LGBMClassifier(
+  #   n_estimators=72,
+  #   num_leaves=31,
+  #   learning_rate=0.05,
+  #   max_depth=11,
+  #   random_state=42,
+  #   verbose=-1
+  # )
+
   model.fit(X_train, y_train)
 
-  # Rewrite current model and save a copy with timestamp
+  # Rewrite current model
   joblib.dump(model, "models/lgbm_model.pkl")
 
   # =========================
