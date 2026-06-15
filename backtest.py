@@ -38,7 +38,7 @@ for date in [
   X = month_data[FEATURES]
 
   month_data["Pred"] = model.predict(X)
-  month_data = month_data[["Date_NY", "Hour_NY", "Session_weekday", "Open", "Close", "High", "Low", "Volume", "Dir", "Target", "Pred", "Day_dir_till_hour"]]
+  month_data = month_data[["Date_NY", "Hour_NY", "Session_weekday", "Open", "Close", "High", "Low", "Dir", "Target", "Pred", "Day_dir_till_hour"]]
 
   data = pd.concat([data, month_data], ignore_index=True)
 
@@ -176,8 +176,8 @@ data = data[[
 ]]
 
 
-print(data.head(52))
-print(data.tail(52))
+print(data.head(54))
+print(data.tail(54))
 print(f"Accuracy: {(data['Pred_dir'] == data['Dir']).mean() * 100:.2f}%")
 
 # =========================

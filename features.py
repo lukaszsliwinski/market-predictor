@@ -5,7 +5,7 @@ import numpy as np
 import exchange_calendars as xcals
 
 
-def create_features(latest_open=0, latest_close=0, latest_high=0, latest_low=0, latest_volume=0):
+def create_features(open_lch=0, close_lch=0, high_lch=0, low_lch=0):
   # =========================
   # YFINANCE DATA
   # =========================
@@ -15,7 +15,7 @@ def create_features(latest_open=0, latest_close=0, latest_high=0, latest_low=0, 
 
   data = pd.read_csv(raw_file_path)
   data["Datetime"] = pd.to_datetime(data["Datetime"], utc=True)
-  data = data[["Datetime", "Open", "High", "Low", "Close", "Volume"]]
+  data = data[["Datetime", "Open", "High", "Low", "Close"]]
   raw_data = data.copy()
 
   # Import latest data w from yfinance
@@ -31,7 +31,7 @@ def create_features(latest_open=0, latest_close=0, latest_high=0, latest_low=0, 
   
   data = data.reset_index()
   data["Datetime"] = pd.to_datetime(data["index"])
-  data = data[["Datetime", "Open", "High", "Low", "Close", "Volume"]]
+  data = data[["Datetime", "Open", "High", "Low", "Close"]]
   data.columns.name = None
 
   # Aggregate latest and backuped data
@@ -43,28 +43,30 @@ def create_features(latest_open=0, latest_close=0, latest_high=0, latest_low=0, 
   data = data.drop_duplicates(subset=["Datetime"], keep="last")
   data = data.sort_values("Datetime").reset_index(drop=True)
 
-  data.iloc[:-1].to_csv(raw_file_path, index=False)
+  data.iloc[:-2].to_csv(raw_file_path, index=False)
 
-  # Overwrite last row with manually entered data
-  data.loc[data.index[-1], "Open"] = latest_open
-  data.loc[data.index[-1], "High"] = latest_high
-  data.loc[data.index[-1], "Low"] = latest_low
-  data.loc[data.index[-1], "Close"] = latest_close
-  data.loc[data.index[-1], "Volume"] = latest_volume
+  # Data adaptation due to yfinance delay
+  last_row_datime = pd.Timestamp(data.iloc[-1]["Datetime"])
+  now_hour = pd.Timestamp.now(tz=last_row_datime.tz).floor("h")
 
-  # Add current hour due to yfinance delay
-  last_datetime = pd.Timestamp(data.iloc[-1]["Datetime"])
-  now_hour = pd.Timestamp.now(tz=last_datetime.tz).floor("h")
+  # if yfinance returned current hour
+  if last_row_datime.floor("h") == now_hour:
+    data = data.iloc[:-1].copy()  # remove last row (current hour) if present
 
-  if last_datetime.floor("h") != now_hour:
-    data.loc[len(data)] = {
-      "Datetime": now_hour,
-      "Open": data.iloc[-1]["Close"],
-      "High": 0.0,
-      "Low": 0.0,
-      "Close": 0.0,
-      "Volume": 0.0
-    }
+  # Overwrite last closed hour with data from props
+  data.loc[data.index[-1], "Open"] = open_lch
+  data.loc[data.index[-1], "High"] = high_lch
+  data.loc[data.index[-1], "Low"] = low_lch
+  data.loc[data.index[-1], "Close"] = close_lch
+
+  # Create a new row for the current hour with open price
+  data.loc[len(data)] = {
+    "Datetime": now_hour,
+    "Open": data.iloc[-1]["Close"],
+    "High": 0.0,
+    "Low": 0.0,
+    "Close": 0.0
+  }
 
   # =========================
   # TIME FEATURES
@@ -97,41 +99,11 @@ def create_features(latest_open=0, latest_close=0, latest_high=0, latest_low=0, 
 
 
 
-  # =========================
-  # IMPUTE MISSING VOLUME AND CREATE PREV HOUR FEATURES
-  # =========================
-
-  # Impute missing volume values for session open bars and remaining gaps
-  # Fill all 18:00 rows with the next available 19:00 row volume
-  for idx in data[data["Hour_NY"] == 18].index:
-    # If the next row is 19:00, assign that volume
-    if idx < len(data) - 1 and data.loc[idx + 1, "Hour_NY"] == 19:
-      next_19_volume = data.loc[idx + 1, "Volume"]  # 19:00 volume
-      data.loc[idx, "Volume"] = round(next_19_volume * 0.9)  # round and assign
-    else:
-      # If this is the last 18:00 row, copy volume from the previous 18:00
-      previous_18_index = data.loc[data["Hour_NY"] == 18].index[-2]  # Last 18:00 row before the final one
-      data.loc[idx, "Volume"] = data.loc[previous_18_index, "Volume"]
-
-  # Replace zeros with NaN so missing volumes can be filled
-  data["Volume"] = data["Volume"].replace(0, np.nan)
-
-  # If volume is NaN, fill with the average of the previous and next hour
-  data["Volume"] = data["Volume"].fillna((data["Volume"].shift(1) + data["Volume"].shift(-1)) / 2)
-
-  # For the first and last row, if volume is NaN, copy from adjacent hours
-  data.loc[0, "Volume"] = data.loc[0, "Volume"] if pd.notna(data.loc[0, "Volume"]) else data.loc[1, "Volume"]
-  data.loc[len(data) - 1, "Volume"] = data.loc[len(data) - 1, "Volume"] if pd.notna(data.loc[len(data) - 1, "Volume"]) else data.loc[len(data) - 2, "Volume"]
-
-  # Round volume to integer
-  data["Volume"] = data["Volume"].round().astype(int)
-
-  # Previous bar values for price and volume-based features
+  # Previous bar values for price
   open_prev = data["Open"].shift(1)
   close_prev = data["Close"].shift(1)
   high_prev = data["High"].shift(1)
   low_prev = data["Low"].shift(1)
-  volume_prev = data["Volume"].shift(1)
   session_open = data.groupby("Session_Day")["Open"].transform("first")
 
 
@@ -166,14 +138,11 @@ def create_features(latest_open=0, latest_close=0, latest_high=0, latest_low=0, 
   data["Session_prev_volatility"] = (
     data.groupby("Session_Day")["Prev_volatility"]
     .transform(lambda x: x.shift(1).expanding().mean())
-  )
-  # data["Session_prev_volatility"] = data.groupby("Session_Day")["Prev_volatility"].transform("mean") # average session volatility
+  ) # average session volatility
   data["Rel_prev_volatility"] = data["Prev_volatility"] / data["Session_prev_volatility"] # relative volatility (context)
 
-  data["Vol_prev_log"] = np.log1p(volume_prev)
-  
   data["Prev_hour_dir"] = np.sign(data["Close"].shift(1) - data["Open"].shift(1))
-  data["Day_dir_till_hour"] = np.sign(close_prev - data["Session_open"])  # For target only
+  data["Day_dir_till_hour"] = np.sign(close_prev - data["Session_open"])
 
 
 
@@ -188,15 +157,6 @@ def create_features(latest_open=0, latest_close=0, latest_high=0, latest_low=0, 
   data["Ret_8h"] = close_prev.pct_change(8)
 
   data["Momentum_accel"] = data["Ret_1h"] - data["Ret_4h"]
-
-  # VWAP (session cumulative) & distance from VWAP
-  typical_price_prev = (high_prev + low_prev + close_prev) / 3
-  cum_vol_price = (typical_price_prev * volume_prev).groupby(data["Session_Day"]).cumsum()
-  cum_volume = volume_prev.groupby(data["Session_Day"]).cumsum()
-
-  data["VWAP"] = cum_vol_price / cum_volume
-  data["Dist_VWAP"] = (close_prev - data["VWAP"]) / data["VWAP"]
-  data["VWAP_log"] = np.log1p(data["VWAP"])
 
   # Rolling volatility
   returns_1h_prev = close_prev.pct_change()
@@ -279,7 +239,6 @@ def create_features(latest_open=0, latest_close=0, latest_high=0, latest_low=0, 
     "Close",
     "High",
     "Low",
-    "Volume",
     "Dir",
     "Day_dir_till_hour",
 
@@ -294,15 +253,11 @@ def create_features(latest_open=0, latest_close=0, latest_high=0, latest_low=0, 
     "Session_prev_volatility",
     "Rel_prev_volatility",
     "Prev_hour_dir",
-    "Vol_prev_log",
     
     "Ret_1h",
     "Ret_2h",
     "Ret_4h",
     "Ret_8h",
-
-    "VWAP_log",
-    "Dist_VWAP",
     
     "Vol_2h",
     "Vol_4h",
@@ -342,15 +297,39 @@ def create_features(latest_open=0, latest_close=0, latest_high=0, latest_low=0, 
 
   if os.path.exists(csv_file_path):
 
-    old = pd.read_csv(csv_file_path)
-    old["Datetime"] = pd.to_datetime(old["Datetime"], utc=True)
-    old = old.iloc[:-1]
+    # physically remove last two non-empty lines from the CSV (keep header)
+    with open(csv_file_path, "r", encoding="utf-8") as f:
+      lines = f.read().splitlines()
 
-    old_set = set(old["Datetime"])
+    if len(lines) > 1:
+      i = len(lines) - 1
+      removed = 0
+      while i > 0 and removed < 2:
+        if lines[i].strip() != "":
+          lines.pop(i)
+          removed += 1
+        i -= 1
+      if removed > 0:
+        with open(csv_file_path, "w", encoding="utf-8") as f:
+          f.write("\n".join(lines) + "\n")
 
+    # read existing datetimes only
+    try:
+      old_dt = pd.read_csv(csv_file_path, usecols=["Datetime"])['Datetime']
+      old_dt = pd.to_datetime(old_dt, utc=True)
+      old_set = set(old_dt)
+    except Exception:
+      old_set = set()
+
+    # select rows missing in the file
     new_data = data[~data["Datetime"].isin(old_set)]
 
-    new_data = new_data.reindex(columns=old.columns)
+    # align columns to existing file header when possible
+    try:
+      header = pd.read_csv(csv_file_path, nrows=0).columns.tolist()
+      new_data = new_data.reindex(columns=header)
+    except Exception:
+      pass
 
     if len(new_data) > 0:
       new_data.to_csv(csv_file_path, mode="a", header=False, index=False)
@@ -362,4 +341,8 @@ def create_features(latest_open=0, latest_close=0, latest_high=0, latest_low=0, 
     data.to_csv(csv_file_path, index=False)
 
 
-create_features(latest_open=0.0, latest_close=0.0, latest_high=0.0, latest_low=0.0, latest_volume=0.0)
+create_features(open_lch=7614.25, close_lch=7623.25, high_lch=7625.0, low_lch=7605.5)
+
+
+# create_features(open_lch=7614.25, close_lch=7623.25, high_lch=7625.0, low_lch=7605.5)
+
