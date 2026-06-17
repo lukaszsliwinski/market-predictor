@@ -91,24 +91,14 @@ data["Early_take_value"] = np.where(
 
 data["Abs_ret_pct_x_lev"] = (
   np.where(
-
-
-    (data["Pred_dir"] == data["Dir"]),
+    data["Early_stop_value"] >= sl,
+    -sl,
     np.where(
-      data["Early_stop_value"] >= sl,
-      -sl,
+      data["Early_take_value"] >= tp,
+      tp,
       np.where(
-        data["Pct_diff"].abs() * 20 > tp,
-        tp,
-        data["Pct_diff"].abs() * 20
-      ),
-    ),
-    np.where(
-      data["Early_stop_value"] >= sl,
-      -sl,
-      np.where(
-        data["Early_take_value"] > tp,
-        tp,
+        (data["Pred_dir"] == data["Dir"]),
+        np.minimum(data["Pct_diff"].abs() * 20, tp),
         -np.minimum(data["Pct_diff"].abs() * 20, sl)
       )
     )
@@ -176,9 +166,10 @@ data = data[[
 ]]
 
 
-print(data.head(54))
-print(data.tail(54))
+print(data.head(56))
+print(data.tail(56))
 print(f"Accuracy: {(data['Pred_dir'] == data['Dir']).mean() * 100:.2f}%")
+print(f"Plus days %: {(data['Ret_m_spread_x_lev'] > 0).mean() * 100:.2f}%")
 
 # =========================
 # PLOT BACKTEST RESULTS
