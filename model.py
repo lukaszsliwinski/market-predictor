@@ -47,33 +47,13 @@ def train(start_train="2024-05-01", end_train=date.today(), report=False):
   # =========================
 
   model = LGBMClassifier(
-    n_estimators=281,
-    num_leaves=50,
-    learning_rate=0.066,
+    n_estimators=365,
+    num_leaves=51,
+    learning_rate=0.059,
     max_depth=6,
     random_state=42,
     verbose=-1
   )
-
-
-
-  # model = LGBMClassifier(
-  #   n_estimators=153,
-  #   num_leaves=63,
-  #   learning_rate=0.087,
-  #   max_depth=6,
-  #   random_state=42,
-  #   verbose=-1
-  # )
-
-  # model = LGBMClassifier(
-  #   n_estimators=72,
-  #   num_leaves=31,
-  #   learning_rate=0.05,
-  #   max_depth=11,
-  #   random_state=42,
-  #   verbose=-1
-  # )
 
   model.fit(X_train, y_train)
 

@@ -14,12 +14,8 @@ from constants import FEATURES
 data = pd.DataFrame()
 
 for date in [
-  "2025-12-31",
-  "2026-01-31",
-  "2026-02-28",
-  "2026-03-31",
   "2026-04-30",
-  "2026-05-31",
+  "2026-05-31"
 ]:
   month_data = pd.read_csv("data/data.csv")
   month_data["Datetime"] = pd.to_datetime(month_data["Datetime"])
@@ -73,7 +69,7 @@ data["Low_pct"] = np.where(
 
 # SL/TP with leverage & spread (%)
 tp = 100.0 # no TP in current strategy
-sl = 7.0
+sl = 6.0
 
 spread = 0.3 # avg. value
 
@@ -166,8 +162,9 @@ data = data[[
 ]]
 
 
-print(data.head(56))
-print(data.tail(56))
+print(data.tail(60))
+
+print("=========================")
 print(f"Accuracy: {(data['Pred_dir'] == data['Dir']).mean() * 100:.2f}%")
 print(f"Plus days %: {(data['Ret_m_spread_x_lev'] > 0).mean() * 100:.2f}%")
 
@@ -175,57 +172,12 @@ print(f"Plus days %: {(data['Ret_m_spread_x_lev'] > 0).mean() * 100:.2f}%")
 # PLOT BACKTEST RESULTS
 # =========================
 
-# Beginnig of the month only
-# data["Date_NY"] = pd.to_datetime(data["Date_NY"])
-# data = (
-#     data.sort_values("Date_NY")
-#         .groupby(data["Date_NY"].dt.to_period("M"))
-#         .tail(1)
-# )
-
-# plt.figure(figsize=(12, 6))
-# plt.plot(data["Date_NY"], data["Capital"], marker="o")
-# plt.xlabel("Data")
-# plt.ylabel("Kapitał po transakcji")
-# plt.title(f"Całkowity kapitał od 2026-01-01")
-# plt.xticks(rotation=45)
-# plt.grid(True)
-# plt.tight_layout()
-# plt.show()
-
-
-
-# =========================
-# TEST LOOP FOR SEARCHING OPTIMAL HOURS
-# =========================
-
-# from itertools import combinations
-
-# hours = [3,7,8,11,12]
-
-# data_original = data.copy()
-# results = []
-
-# for r in range(1, 6):  # 1..5
-#   for subset in combinations(hours, r):
-
-#     data = data_original.copy()
-
-#     data = data[data["Hour_NY"].isin(subset)].reset_index(drop=True)
-
-#     <main backtest code>
-
-
-#     print(subset, ": ", data["Capital"].iloc[-1])
-
-#     result = data["Capital"].iloc[-1]
-
-#     results.append({
-#       "subset": subset,
-#       "result": result
-#     })
-
-# top10 = sorted(results, key=lambda x: x["result"], reverse=True)[:10]
-
-# for row in top10:
-#   print("best: ", row["subset"], ":", row["result"])
+plt.figure(figsize=(12, 6))
+plt.plot(data["Date_NY"], data["Capital"], marker="o")
+plt.xlabel("Data")
+plt.ylabel("Kapitał po transakcji")
+plt.title(f"Całkowity kapitał od 2026-01-01")
+plt.xticks(rotation=45)
+plt.grid(True)
+plt.tight_layout()
+plt.show()

@@ -21,7 +21,8 @@ def create_features(open_lch=0, close_lch=0, high_lch=0, low_lch=0):
   # Import latest data w from yfinance
   data = yf.download(
     "ES=F",
-    period="max",
+    # period="max",
+    start="2026-06-01",
     interval="1h",
   )
 
@@ -341,8 +342,4 @@ def create_features(open_lch=0, close_lch=0, high_lch=0, low_lch=0):
     data.to_csv(csv_file_path, index=False)
 
 
-create_features(open_lch=7614.25, close_lch=7623.25, high_lch=7625.0, low_lch=7605.5)
-
-
-# create_features(open_lch=7614.25, close_lch=7623.25, high_lch=7625.0, low_lch=7605.5)
-
+create_features(open_lch=7596.25, close_lch=7538.0, high_lch=7599.25, low_lch=7527.25)
