@@ -47,7 +47,11 @@ for date in [
 # Test only selected hours
 data = data[data["Hour_NY"].isin([11])].reset_index(drop=True)
 
-data["Pred"] = (data["Pred"]).astype(np.float32)
+data["Pred"] = np.where(
+  (data["Pred"] == 0),
+  -1.0,
+  1.0
+)
 data["Pred_dir"] = np.where(
   data["Day_dir_till_hour"] == data["Pred"],
   1.0,
@@ -55,17 +59,8 @@ data["Pred_dir"] = np.where(
 ).astype(np.float32)
 data["Pct_diff"] = (((data["Close"] - data["Open"]) / data["Open"]) * 100).round(2)
 
-data["High_pct"] = np.where(
-  data["Close"] > data["Open"],
-  ((data["High"] - data["Close"]) / data["Close"]) * 100,
-  ((data["High"] - data["Open"]) / data["Open"]) * 100
-).round(2)
-
-data["Low_pct"] = np.where(
-  data["Close"] > data["Open"],
-  ((data["Open"] - data["Low"]) / data["Open"]) * 100,
-  ((data["Close"] - data["Low"]) / data["Close"]) * 100
-).round(2)
+data["High_pct"] = (((data["High"] - data["Open"]) / data["Open"]) * 100).round(2)
+data["Low_pct"] = (((data["Low"] - data["Open"]) / data["Open"]) * 100).round(2)
 
 # SL/TP with leverage & spread (%)
 tp = 100.0 # no TP in current strategy
@@ -153,6 +148,7 @@ data = data[[
   "Date_NY",
   "Hour_NY",
   "Session_weekday",
+  "Day_dir_till_hour",
   "Pred",
   "Pred_dir",
   "Dir",
@@ -172,12 +168,12 @@ print(f"Plus days %: {(data['Ret_m_spread_x_lev'] > 0).mean() * 100:.2f}%")
 # PLOT BACKTEST RESULTS
 # =========================
 
-plt.figure(figsize=(12, 6))
-plt.plot(data["Date_NY"], data["Capital"], marker="o")
-plt.xlabel("Data")
-plt.ylabel("Kapitał po transakcji")
-plt.title(f"Całkowity kapitał od 2026-01-01")
-plt.xticks(rotation=45)
-plt.grid(True)
-plt.tight_layout()
-plt.show()
+# plt.figure(figsize=(12, 6))
+# plt.plot(data["Date_NY"], data["Capital"], marker="o")
+# plt.xlabel("Data")
+# plt.ylabel("Kapitał po transakcji")
+# plt.title(f"Całkowity kapitał od 2026-01-01")
+# plt.xticks(rotation=45)
+# plt.grid(True)
+# plt.tight_layout()
+# plt.show()

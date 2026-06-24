@@ -341,5 +341,4 @@ def create_features(open_lch=0, close_lch=0, high_lch=0, low_lch=0):
   else:
     data.to_csv(csv_file_path, index=False)
 
-
-create_features(open_lch=7596.25, close_lch=7538.0, high_lch=7599.25, low_lch=7527.25)
+create_features(open_lch=7596.25, close_lch=7543.0, high_lch=7599.25, low_lch=7527.25)
